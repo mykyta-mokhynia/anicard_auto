@@ -1,0 +1,31 @@
+{
+  "bot": "@anicardplaybot",
+  "concurrency": 2,
+  "accounts": [
+    {
+      "session": "account_1",
+      "phone": "+27643843385"
+    },
+    {
+      "session": "account_2",
+      "phone": "+254785475747"
+    },
+    {
+      "session": "account_3",
+      "phone": "+998958212811"
+    },
+    {
+      "session": "account_4",
+      "phone": "+19392961058"
+    },
+    {
+      "session": "account_5",
+      "phone": "+19392980216"
+    },
+    {
+      "session": "account_6",
+      "phone": "+905517318912"
+    }
+  ],
+  "message_timeout": 700
+}
