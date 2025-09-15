@@ -1,0 +1,32 @@
+# Git attributes for proper line ending handling
+
+# Ensure .command files always use LF line endings
+*.command text eol=lf
+
+# Ensure .sh files always use LF line endings  
+*.sh text eol=lf
+
+# Ensure .py files always use LF line endings
+*.py text eol=lf
+
+# Ensure .md files always use LF line endings
+*.md text eol=lf
+
+# Ensure .json files always use LF line endings
+*.json text eol=lf
+
+# Ensure .txt files always use LF line endings
+*.txt text eol=lf
+
+# Ensure .bat files use CRLF line endings (Windows)
+*.bat text eol=crlf
+
+# Binary files
+*.session binary
+*.session-journal binary
+*.rar binary
+*.zip binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
