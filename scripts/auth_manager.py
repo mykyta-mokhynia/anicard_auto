@@ -133,7 +133,7 @@ def get_next_account_name():
     """
     Получает следующее доступное имя аккаунта (account_1, account_2, etc.)
     """
-    accounts_file = "../accounts/accounts.json"
+    accounts_file = "accounts/accounts.json"
     
     if not os.path.exists(accounts_file):
         return "account_1"
