@@ -133,143 +133,190 @@ async def click_button_and_wait(client, entity, msg, button_text=None, button_in
 
 # === ФУНКЦИИ ДЛЯ РАБОТЫ С КАРТАМИ ===
 
+def load_rare_cards_filter():
+    """
+    Загружает список редких карт из JSON файла для фильтрации
+    """
+    try:
+        with open("rare_cards_filter.json", "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("cards", {})
+    except FileNotFoundError:
+        print("⚠️ Файл rare_cards_filter.json не найден, фильтрация по названию отключена")
+        return {}
+    except Exception as e:
+        print(f"❌ Ошибка загрузки rare_cards_filter.json: {e}")
+        return {}
+
+def is_rare_card_by_name(card_name):
+    """
+    Проверяет, является ли карта редкой по названию из списка фильтрации
+    Возвращает кортеж (категория, рейтинг) или (None, None)
+    """
+    rare_cards = load_rare_cards_filter()
+    
+    if not rare_cards:
+        return None, None
+    
+    # Нормализуем название карты для поиска
+    normalized_name = card_name.strip()
+    
+    # Проверяем по всем категориям редкости
+    for category, cards in rare_cards.items():
+        for card in cards:
+            if card.get("name", "").strip() == normalized_name:
+                rating = card.get("strength", None)  # Берем рейтинг из поля strength
+                return category, rating
+    
+    return None, None
+
 def parse_card_response(text, card_type):
     """
     Парсит ответ бота на получение карты и извлекает информацию о редких картах
+    Проверяет редкость как по ключевым словам, так и по названию из списка фильтрации
+    Возвращает dict с информацией о карте или None если карта не редкая
     """
-    if card_type == "battle":
-        rare_keywords = ["Легендарная", "Мифическая", "Адамантиновая"]
-    elif card_type == "collection":
-        rare_keywords = ["Легендарная", "Мифическая"]
-    else:
-        return None
-    
-    rarity = None
-    for keyword in rare_keywords:
-        if keyword in text:
-            rarity = keyword
-            break
-    
-    if not rarity:
-        return None
-    
+    # Парсим информацию о карте независимо от редкости
     card_info = {
-        "rarity": rarity,
         "type": card_type,
         "name": "",
         "universe": "",
         "element": "",
         "character": "",
+        "rating": None,
+        "rarity": None,
         "timestamp": datetime.datetime.now().isoformat()
     }
     
+    # Для боевых карт
     if card_type == "battle":
+        # Ищем имя карты
         name_match = re.search(r'🎴 Карта: (.+)', text)
         if name_match:
             card_info["name"] = name_match.group(1).strip()
         
+        # Ищем вселенную
         universe_match = re.search(r'🔮 Вселенная: (.+)', text)
         if universe_match:
             card_info["universe"] = universe_match.group(1).strip()
         
+        # Ищем элемент/стихию
         element_match = re.search(r'Элемент: (.+)', text)
         if element_match:
             card_info["element"] = element_match.group(1).strip()
     
+    # Извлекаем рейтинг карты (для всех типов карт)
+    rating_match = re.search(r'Рейтинг: (\d+)', text)
+    if rating_match:
+        card_info["rating"] = int(rating_match.group(1))
+    
+    # Для коллекционных карт
     elif card_type == "collection":
+        # Ищем персонажа
         character_match = re.search(r'👤 Персонаж: (.+)', text)
         if character_match:
             card_info["character"] = character_match.group(1).strip()
     
-    return card_info
+    # Проверяем редкость карты только по списку фильтрации
+    card_name = card_info["name"] or card_info["character"]
+    if not card_name:
+        return None
+    
+    # Проверяем по названию из списка фильтрации
+    rarity_category, rating_from_list = is_rare_card_by_name(card_name)
+    if rarity_category:
+        card_info["rarity"] = rarity_category
+        # Используем рейтинг из списка, а не из сообщения
+        card_info["rating"] = rating_from_list
+        print(f"🎯 Найдена редкая карта: {card_name} ({rarity_category}, рейтинг: {rating_from_list})")
+        return card_info
+    
+    # Карта не найдена в списке редких карт
+    return None
 
 def save_card_to_file(session_name, card_info):
     """
-    Сохраняет редкую карту в файл
+    Сохраняет информацию о редкой карте в JSON файл аккаунта
     """
     file_path = os.path.join(CARDS_FOLDER, f"{session_name}.json")
     
+    # Загружаем существующие данные или создаем новые
     if os.path.exists(file_path):
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
         except:
-            data = {"legendary": [], "mythic": [], "adamantine": [], "epic": []}
+            data = {"epic": [], "legendary": [], "myfics": [], "adamant": []}
     else:
-        data = {"legendary": [], "mythic": [], "adamantine": [], "epic": []}
+        data = {"epic": [], "legendary": [], "myfics": [], "adamant": []}
     
-    # Определяем редкость карты
-    rarity = is_rare_card(card_info["rating"])
-    if not rarity:
-        return
+    # Определяем категорию редкости
+    rarity = card_info["rarity"]
+    category = rarity  # Теперь rarity уже содержит правильную категорию
     
-    if rarity == "adamantine":
-        category = "adamantine"
-    elif rarity == "mythic":
-        category = "mythic"
-    elif rarity == "legendary":
-        category = "legendary"
-    elif rarity == "epic":
-        category = "epic"
-    else:
-        return
+    # Проверяем, что категория существует
+    if category not in data:
+        data[category] = []
     
     # Проверяем, нет ли уже такой карты
+    card_name = card_info["name"] or card_info["character"]
     for existing_card in data[category]:
-        if existing_card["name"] == card_info["name"]:
-            print(f"🔄 [{session_name}] Карта {card_info['name']} уже есть в коллекции")
+        if existing_card.get("name") == card_name:
+            print(f"🔄 [{session_name}] Карта {card_name} уже есть в коллекции ({category})")
             return
     
-    # Добавляем новую карту
+    # Добавляем карту в соответствующую категорию (только имя, элемент, рейтинг)
     card_entry = {
-        "name": card_info["name"] or card_info.get("character", ""),
-        "universe": card_info.get("universe", ""),
-        "element": card_info.get("element", ""),
-        "rating": card_info["rating"],
-        "type": card_info["type"],
-        "rarity": rarity,
-        "timestamp": datetime.now().isoformat()
+        "name": card_name,
+        "rating": card_info["rating"]
     }
     
-    if card_info.get("character"):
-        card_entry["character"] = card_info["character"]
+    if card_info["element"]:
+        card_entry["element"] = card_info["element"]
     
     data[category].append(card_entry)
     
+    # Сохраняем обновленные данные
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     
-    print(f"💾 [{session_name}] Редкая карта сохранена: {card_info['name']} ({rarity})")
+    print(f"💾 [{session_name}] Редкая карта сохранена: {card_name} ({category})")
 
 def send_card_notification(session_name, card_info):
     """
     Отправляет уведомление о получении редкой карты
     """
     rarity_emoji = {
-        "epic": "🟣",
-        "legendary": "🟡", 
-        "mythic": "🔴",
-        "adamantine": "💎"
+        "epic": "🟢",
+        "legendary": "🌟",
+        "myfics": "✨", 
+        "adamant": "💎"
     }
     
-    emoji = rarity_emoji.get(card_info["rarity"], "⚪")
-    print(f"🎉 [{session_name}] НОВАЯ РЕДКАЯ КАРТА! {emoji} {card_info['name']} (Рейтинг: {card_info['rating']}, {card_info['rarity']})")
-
-def is_rare_card(rating):
-    """
-    Проверяет, является ли карта редкой по рейтингу
-    Сохраняем только: 80, 87-90, 99-101
-    """
-    if rating == 101:
-        return "adamantine"
-    elif rating >= 99 and rating <= 100:
-        return "mythic"
-    elif rating >= 87 and rating <= 90:
-        return "legendary"
-    elif rating == 80:
-        return "epic"
-    else:
-        return None
+    type_emoji = {
+        "battle": "⚔️",
+        "collection": "🎭"
+    }
+    
+    emoji = rarity_emoji.get(card_info["rarity"], "🎴")
+    type_icon = type_emoji.get(card_info["type"], "🎴")
+    
+    print(f"\n🎉 {emoji} РЕДКАЯ КАРТА! {emoji}")
+    print(f"👤 Аккаунт: {session_name}")
+    print(f"🔮 Редкость: {card_info['rarity']} {emoji}")
+    print(f"📋 Тип: {type_icon} {'Боевая' if card_info['type'] == 'battle' else 'Коллекционная'}")
+    
+    card_name = card_info["name"] or card_info["character"]
+    if card_name:
+        print(f"🎴 Название: {card_name}")
+    if card_info.get("rating"):
+        print(f"⭐ Рейтинг: {card_info['rating']}")
+    if card_info["universe"]:
+        print(f"🔮 Вселенная: {card_info['universe']}")
+    if card_info["element"]:
+        print(f"🍃 Элемент: {card_info['element']}")
+    
+    print("=" * 50)
 
 async def filter_rare_card(client, entity, card_info):
     """
@@ -423,19 +470,12 @@ async def use_attempts(client, entity, attempts, card_type):
                 if reply and reply.raw_text:
                     card_info = parse_card_response(reply.raw_text, card_type)
                     if card_info:
-                        rarity = is_rare_card(card_info["rating"])
-                        if rarity:
-                            card_info["rarity"] = rarity
-                            save_card_to_file(client.session.filename, card_info)
-                            send_card_notification(client.session.filename, card_info)
-                            print(f"🎉 [{client.session.filename}] Редкая карта: {card_info['name']} (Рейтинг: {card_info['rating']})")
-                            
-                            # Выполняем фильтрацию для редких карт
-                            await filter_rare_card(client, entity, card_info)
-                        else:
-                            print(f"📝 [{client.session.filename}] Обычная карта: {card_info['name']} (Рейтинг: {card_info['rating']})")
+                        # Карта уже проверена в parse_card_response и является редкой
+                        save_card_to_file(client.session.filename, card_info)
+                        send_card_notification(client.session.filename, card_info)
+                        print(f"🎉 [{client.session.filename}] Редкая карта: {card_info['name']} ({card_info['rarity']})")
                     else:
-                        print(f"📝 [{client.session.filename}] Не удалось распарсить карту (попытка {i+1})")
+                        print(f"📝 [{client.session.filename}] Обычная карта (попытка {i+1})")
                             
             except asyncio.TimeoutError:
                 print(f"⚠️ [{client.session.filename}] Таймаут при попытке {i+1}")

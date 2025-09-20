@@ -35,41 +35,6 @@ if not os.path.exists(CARDS_FOLDER):
 
 # === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
 
-def parse_card_response(text, card_type):
-    """
-    Парсит ответ бота о получении карты
-    """
-    try:
-        # Парсим рейтинг
-        rating_match = re.search(r'(\d+)\s*\|', text)
-        if not rating_match:
-            return None
-        
-        rating = int(rating_match.group(1))
-        
-        # Парсим название карты
-        name_match = re.search(r'\|\s*([^🔮\n]+)', text)
-        name = name_match.group(1).strip() if name_match else "Неизвестно"
-        
-        # Парсим вселенную
-        universe_match = re.search(r'🔮\s*Вселенная:\s*([^\n]+)', text)
-        universe = universe_match.group(1).strip() if universe_match else ""
-        
-        # Парсим элемент
-        element_match = re.search(r'🍃\s*Элемент:\s*([^\n]+)', text)
-        element = element_match.group(1).strip() if element_match else ""
-        
-        return {
-            "name": name,
-            "rating": rating,
-            "universe": universe,
-            "element": element,
-            "type": card_type
-        }
-    except Exception as e:
-        print(f"❌ Ошибка при парсинге карты: {e}")
-        return None
-
 def is_rare_card(rating):
     """
     Проверяет, является ли карта редкой по рейтингу
@@ -380,16 +345,20 @@ async def daily_cycle_for_account(client, bot_username):
                             
                             if checkmark_button:
                                 print(f"✅ [{client.session.filename}] AniPass доступен, нажимаем галочку")
-                                msg = await click_button_and_wait(client, entity, msg, button_text=checkmark_button)
-                                if msg:
+                                # Сохраняем ссылку на сообщение с меню AniPass
+                                anipass_menu_msg = msg
+                                reward_msg = await click_button_and_wait(client, entity, msg, button_text=checkmark_button)
+                                if reward_msg:
                                     print(f"✅ [{client.session.filename}] AniPass получен")
                                     await asyncio.sleep(MESSAGE_TIMEOUT)  # Задержка после получения
+                                    # Используем сохраненное сообщение с меню для возврата
+                                    msg = anipass_menu_msg
                                 else:
                                     print(f"⚠️ [{client.session.filename}] Не удалось получить AniPass")
                             else:
                                 print(f"ℹ️ [{client.session.filename}] AniPass уже забран за день, пропускаем...")
                         
-                        # Нажимаем "Назад"
+                        # Нажимаем "Назад" - теперь используем правильное сообщение с кнопками
                         print(f"🔙 [{client.session.filename}] Нажимаем 'Назад'...")
                         msg = await click_button_and_wait(client, entity, msg, button_text="Назад 🔙")
                         if msg:
@@ -430,8 +399,13 @@ async def daily_cycle_for_account(client, bot_username):
                         # Мистический жетон (ежедневно)
                         print(f"🀄️ [{client.session.filename}] Получаем мистический жетон...")
                         try:
-                            msg = await click_button_and_wait(client, entity, msg, button_text="🀄️ Мистический жетон")
-                            if msg:
+                            reward_msg = await click_button_and_wait(client, entity, msg, button_text="🀄️ Мистический жетон")
+                            if reward_msg:
+                                print(f"🀄️ [{client.session.filename}] Награда получена, ждем новое сообщение с артефактами...")
+                                # Ждем новое сообщение с артефактами после получения жетона
+                                msg = await wait_new_from(client, entity, timeout=MESSAGE_TIMEOUT*2, contains="Прикоснись к  древним артефактам")
+                                if msg:
+                                    print(f"✅ [{client.session.filename}] Получено обновленное сообщение с артефактами")
                                 await asyncio.sleep(MESSAGE_TIMEOUT)  # Задержка после получения
                         except Exception as e:
                             print(f"⚠️ [{client.session.filename}] Таймаут при получении жетона")
@@ -439,8 +413,13 @@ async def daily_cycle_for_account(client, bot_username):
                         # Древний куб удачи (еженедельно)
                         print(f"🎲 [{client.session.filename}] Получаем древний куб удачи...")
                         try:
-                            msg = await click_button_and_wait(client, entity, msg, button_text="🎲 Древний куб удачи")
-                            if msg:
+                            reward_msg = await click_button_and_wait(client, entity, msg, button_text="🎲 Древний куб удачи")
+                            if reward_msg:
+                                print(f"🎲 [{client.session.filename}] Награда получена, ждем новое сообщение с артефактами...")
+                                # Ждем новое сообщение с артефактами после получения куба
+                                msg = await wait_new_from(client, entity, timeout=MESSAGE_TIMEOUT*2, contains="Прикоснись к  древним артефактам")
+                                if msg:
+                                    print(f"✅ [{client.session.filename}] Получено обновленное сообщение с артефактами")
                                 await asyncio.sleep(MESSAGE_TIMEOUT)  # Задержка после получения
                         except Exception as e:
                             print(f"⚠️ [{client.session.filename}] Таймаут при получении куба удачи")
@@ -448,13 +427,28 @@ async def daily_cycle_for_account(client, bot_username):
                         # Рог призыва (еженедельно)
                         print(f"📯 [{client.session.filename}] Получаем рог призыва...")
                         try:
-                            msg = await click_button_and_wait(client, entity, msg, button_text="📯 Рог призыва")
-                            if msg:
+                            reward_msg = await click_button_and_wait(client, entity, msg, button_text="📯 Рог призыва")
+                            if reward_msg:
+                                print(f"📯 [{client.session.filename}] Награда получена, ждем новое сообщение с артефактами...")
+                                # Ждем новое сообщение с артефактами после получения рога
+                                msg = await wait_new_from(client, entity, timeout=MESSAGE_TIMEOUT*2, contains="Прикоснись к  древним артефактам")
+                                if msg:
+                                    print(f"✅ [{client.session.filename}] Получено обновленное сообщение с артефактами")
                                 await asyncio.sleep(MESSAGE_TIMEOUT)  # Задержка после получения
                         except Exception as e:
                             print(f"⚠️ [{client.session.filename}] Таймаут при получении рога призыва")
                         
-                        # Нажимаем "Назад"
+                        # Убеждаемся, что у нас есть актуальное сообщение с кнопкой "Назад"
+                        if not msg or "Прикоснись к  древним артефактам" not in msg.raw_text:
+                            print(f"🪤 [{client.session.filename}] Получаем актуальное сообщение с артефактами...")
+                            try:
+                                async for message in client.iter_messages(entity, limit=1):
+                                    msg = message
+                                    break
+                            except Exception as e:
+                                print(f"⚠️ [{client.session.filename}] Ошибка при получении последнего сообщения: {e}")
+                        
+                        # Нажимаем "Назад" - теперь в правильном сообщении
                         print(f"🔙 [{client.session.filename}] Нажимаем 'Назад'...")
                         msg = await click_button_and_wait(client, entity, msg, button_text="Назад 🔙")
                         if msg:
@@ -484,9 +478,21 @@ async def daily_cycle_for_account(client, bot_username):
                 
                 if craft_button:
                     print(f"🧬 [{client.session.filename}] Найдена кнопка: {craft_button}")
-                    msg = await click_button_and_wait(client, entity, msg, button_text=craft_button)
-                    if msg:
-                        print(f"✅ [{client.session.filename}] Крафт меню открыто")
+                    craft_msg = await click_button_and_wait(client, entity, msg, button_text=craft_button)
+                    if craft_msg:
+                        print(f"✅ [{client.session.filename}] Крафт меню открыто, ждем новое сообщение...")
+                        # Ждем новое сообщение с вариантами получения карт
+                        try:
+                            msg = await wait_new_from(client, entity, timeout=MESSAGE_TIMEOUT*2, contains="В Аникарде есть много способов получить новые карты")
+                            if msg:
+                                print(f"✅ [{client.session.filename}] Получено сообщение с вариантами получения карт")
+                            else:
+                                print(f"⚠️ [{client.session.filename}] Не получено ожидаемое сообщение, используем последнее")
+                                msg = craft_msg
+                        except Exception as e:
+                            print(f"⚠️ [{client.session.filename}] Ошибка при ожидании нового сообщения: {e}")
+                            msg = craft_msg
+                        
                         await asyncio.sleep(MESSAGE_TIMEOUT)  # Задержка между действиями
                         
                         # Омут душ

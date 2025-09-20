@@ -82,30 +82,62 @@ def view_rare_cards():
         print("📭 Редких карт пока нет")
         return
     
-    total_cards = 0
+    # Собираем все карты из всех аккаунтов
+    all_cards = []
+    
     for card_file in card_files:
         try:
             with open(card_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
             account_name = card_file.stem
-            print(f"\n👤 {account_name}:")
             
             for rarity, cards in data.items():
-                if cards:
-                    emoji = {"epic": "🟣", "legendary": "🟡", "mythic": "🔴", "adamantine": "💎"}.get(rarity, "⚪")
-                    print(f"  {emoji} {rarity.upper()}: {len(cards)} карт")
-                    total_cards += len(cards)
+                for card in cards:
+                    # Определяем рейтинг карты
+                    rating = card.get('rating', 0)
+                    if rating == 0 and rarity == 'adamantine':
+                        rating = 101
+                    elif rating == 0 and rarity == 'mythic':
+                        rating = 99
+                    elif rating == 0 and rarity == 'legendary':
+                        rating = 87
+                    elif rating == 0 and rarity == 'epic':
+                        rating = 80
                     
-                    # Показываем первые 3 карты
-                    for i, card in enumerate(cards[:3]):
-                        print(f"    • {card['name']} (Рейтинг: {card['rating']})")
-                    if len(cards) > 3:
-                        print(f"    ... и еще {len(cards) - 3} карт")
+                    # Извлекаем эмодзи из поля element
+                    element = card.get('element', '')
+                    element_emoji = "⚪"  # По умолчанию
+                    
+                    # Извлекаем эмодзи из строки element
+                    import re
+                    emoji_match = re.search(r'([🔥💧🌍💨🍃⚡🧊💡🌑⭐🌟✨💎🔮])', element)
+                    if emoji_match:
+                        element_emoji = emoji_match.group(1)
+                    
+                    all_cards.append({
+                        'name': card['name'],
+                        'rating': rating,
+                        'element_emoji': element_emoji,
+                        'account': account_name
+                    })
+                        
         except Exception as e:
             print(f"❌ Ошибка при чтении {card_file}: {e}")
     
-    print(f"\n📊 Всего редких карт: {total_cards}")
+    if not all_cards:
+        print("📭 Редких карт пока нет")
+        return
+    
+    # Сортируем по рейтингу (более редкие сверху)
+    all_cards.sort(key=lambda x: x['rating'], reverse=True)
+    
+    # Выводим все карты в нужном формате
+    print()
+    for card in all_cards:
+        print(f"{card['element_emoji']}{card['name']} - {card['rating']}")
+    
+    print(f"\n📊 Всего редких карт: {len(all_cards)}")
 
 def view_accounts():
     """Просмотр списка аккаунтов"""
