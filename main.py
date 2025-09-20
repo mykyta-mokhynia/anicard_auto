@@ -135,7 +135,7 @@ def view_rare_cards():
     # Выводим все карты в нужном формате
     print()
     for card in all_cards:
-        print(f"{card['element_emoji']}{card['name']} - {card['rating']}")
+        print(f"{card['element_emoji']}{card['name']} - {card['rating']} ({card['account']})")
     
     print(f"\n📊 Всего редких карт: {len(all_cards)}")
 
